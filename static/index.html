@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Классификация музыкальных рецензий Pitchfork</title>
+<style>
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 680px;
+    margin: 40px auto;
+    padding: 0 20px;
+    color: #0b0b0b;
+    background: #fcfcfb;
+  }
+  h1 { font-size: 22px; }
+  p.sub { color: #52514e; margin-top: -8px; }
+  textarea {
+    width: 100%;
+    height: 160px;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #c3c2b7;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-family: inherit;
+  }
+  button {
+    margin-top: 12px;
+    padding: 10px 20px;
+    font-size: 15px;
+    border: none;
+    border-radius: 6px;
+    background: #2a78d6;
+    color: white;
+    cursor: pointer;
+  }
+  button:disabled { background: #c3c2b7; cursor: default; }
+  #result {
+    margin-top: 24px;
+    padding: 16px;
+    border-radius: 8px;
+    display: none;
+  }
+  #result.good { background: #eaf3ff; border: 1px solid #2a78d6; }
+  #result.bad  { background: #fdeee9; border: 1px solid #eb6834; }
+  #result .label { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+  #result .conf  { color: #52514e; font-size: 14px; }
+  #error { color: #c0392b; margin-top: 12px; display: none; }
+</style>
+</head>
+<body>
+
+<h1>Классификация музыкальных рецензий Pitchfork</h1>
+<p class="sub">Вставь текст рецензии на музыкальный альбом — модель определит, хороший это отзыв или плохой.</p>
+
+<textarea id="text" placeholder="Например: This album is a triumphant return to form, brimming with subtle melodies and gorgeous production..."></textarea>
+<br>
+<button id="btn" onclick="classify()">Классифицировать</button>
+
+<div id="error"></div>
+<div id="result">
+  <div class="label" id="label"></div>
+  <div class="conf" id="conf"></div>
+</div>
+
+<script>
+async function classify() {
+  const text = document.getElementById('text').value;
+  const btn = document.getElementById('btn');
+  const result = document.getElementById('result');
+  const error = document.getElementById('error');
+  result.style.display = 'none';
+  error.style.display = 'none';
+
+  if (!text.trim()) {
+    error.textContent = 'Введите текст отзыва';
+    error.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Классифицирую...';
+
+  try {
+    const resp = await fetch('/predict', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: text})
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.detail || 'Ошибка сервера');
+    }
+    const data = await resp.json();
+
+    result.className = data.label === 1 ? 'good' : 'bad';
+    document.getElementById('label').textContent = data.label_name;
+    document.getElementById('conf').textContent =
+      `Уверенность модели: ${(data.confidence * 100).toFixed(1)}% ` +
+      `(плохой: ${(data.probabilities['Плохой отзыв'] * 100).toFixed(1)}%, ` +
+      `хороший: ${(data.probabilities['Хороший отзыв'] * 100).toFixed(1)}%)`;
+    result.style.display = 'block';
+  } catch (e) {
+    error.textContent = e.message;
+    error.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Классифицировать';
+  }
+}
+</script>
+
+</body>
+</html>
